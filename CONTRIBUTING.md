@@ -42,6 +42,10 @@ Lệnh này chạy type check, test, build và deploy thử. GitHub Actions ch�
 
 Fork không tự deploy. Hãy làm theo [DEPLOYMENT.md](DEPLOYMENT.md) với tài khoản Cloudflare của bạn, rồi thay `database_id`, `PUBLIC_BASE_URL`, `ZALO_WEBHOOK_URL`, `ZALO_BOT_NAME` trong `wrangler.jsonc`, địa chỉ Worker trong `relay/api/zalo.ts`, và tên repo cùng địa chỉ kiểm tra trong `.github/workflows/`.
 
+## Giấy phép
+
+Dự án dùng giấy phép [MIT](LICENSE). Khi gửi pull request, bạn đồng ý để phần đóng góp được phát hành theo giấy phép này.
+
 ## Báo lỗi bảo mật
 
 Đừng đăng lỗ hổng bảo mật công khai trong issue. Hãy dùng **Security → Report a vulnerability** của repo.
