@@ -1,0 +1,120 @@
+@import 'tailwindcss';
+@import '@fontsource/be-vietnam-pro/vietnamese-400.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-500.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-600.css';
+@import '@fontsource/be-vietnam-pro/vietnamese-700.css';
+@import '@fontsource/be-vietnam-pro/latin-400.css';
+@import '@fontsource/be-vietnam-pro/latin-500.css';
+@import '@fontsource/be-vietnam-pro/latin-600.css';
+@import '@fontsource/be-vietnam-pro/latin-700.css';
+
+@theme {
+  --font-sans: 'Be Vietnam Pro', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+}
+
+:root {
+  color-scheme: light;
+  --bg: #f7f5f0;
+  --surface: #ffffff;
+  --subtle: #f0ece4;
+  --line: #e4dfd6;
+  --ink: #23201c;
+  --muted: #6b6359;
+  --accent: #8a3324;
+  --accent-ink: #ffffff;
+  --accent-soft: #f6e8e3;
+  --warn: #8a5800;
+  --warn-soft: #fbf0d9;
+  --ok: #2a6340;
+  --ok-soft: #e3f1e8;
+  --danger: #b3261e;
+  --danger-soft: #fbe9e7;
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: #14120f;
+  --surface: #1e1b17;
+  --subtle: #2a2620;
+  --line: #36312a;
+  --ink: #f0ebe2;
+  --muted: #a89f91;
+  --accent: #e39573;
+  --accent-ink: #20120c;
+  --accent-soft: #3b251c;
+  --warn: #e6b85c;
+  --warn-soft: #362a12;
+  --ok: #7cc798;
+  --ok-soft: #1b3024;
+  --danger: #f2978f;
+  --danger-soft: #3a1c19;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-surface;
+  }
+  .btn {
+    @apply inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply border-accent bg-accent text-accent-ink hover:bg-accent hover:opacity-90;
+  }
+  .btn-danger {
+    @apply border-danger/40 text-danger hover:bg-danger-soft;
+  }
+  .btn-sm {
+    @apply min-h-8 rounded-lg px-3 py-1 text-xs;
+  }
+  .input {
+    @apply min-h-10 w-full rounded-xl border border-line bg-surface px-3 py-2 text-base text-ink outline-none placeholder:text-muted focus:border-accent md:text-sm;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-ink;
+  }
+  .hint {
+    @apply mt-1.5 text-xs leading-relaxed text-muted;
+  }
+  .field-error {
+    @apply mt-1.5 text-xs text-danger;
+  }
+  .chip {
+    @apply inline-flex min-h-9 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface px-2.5 text-sm text-ink transition-colors hover:bg-subtle;
+  }
+  .chip-on {
+    @apply border-accent bg-accent text-accent-ink hover:bg-accent;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}

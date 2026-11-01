@@ -1,0 +1,9 @@
+node_modules/
+frontend/dist/
+.wrangler/
+.vercel/
+.dev.vars
+*.log
+backup*.sql
+backup*.json
+.DS_Store

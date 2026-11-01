@@ -1,0 +1,21 @@
+# Sao chép file này thành .dev.vars để chạy local. File .dev.vars đã được .gitignore.
+# Khi deploy thật, dùng `npx wrangler secret put <TÊN>` thay vì file này.
+
+# Mật khẩu đăng nhập trang quản trị (nên dài ít nhất 12 ký tự).
+ADMIN_PASSWORD=doi-mat-khau-nay
+
+# Token lấy từ @BotFather. Có thể để trống nếu chưa thử Telegram.
+TELEGRAM_BOT_TOKEN=
+
+# Chuỗi ngẫu nhiên để Telegram xác thực webhook: chỉ gồm A-Z a-z 0-9 _ - , dài 1-256 ký tự.
+TELEGRAM_WEBHOOK_SECRET=doi-chuoi-bi-mat-nay
+
+# Không bắt buộc: token từ Zalo Bot Creator và chuỗi ngẫu nhiên dài 8-256 ký tự.
+ZALO_BOT_TOKEN=
+ZALO_WEBHOOK_SECRET=doi-chuoi-bi-mat-zalo
+
+# Không bắt buộc: gửi ảnh thiệp. Thiếu một trong ba giá trị thì nhắc được gửi bằng chữ.
+# PUBLIC_BASE_URL phải là địa chỉ công khai, khi chạy local là địa chỉ tunnel.
+PUBLIC_BASE_URL=https://xxx.trycloudflare.com
+BROWSER_RUN_ACCOUNT_ID=
+BROWSER_RUN_TOKEN=

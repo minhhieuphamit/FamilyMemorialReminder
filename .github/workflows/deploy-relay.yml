@@ -1,0 +1,37 @@
+# Relay webhook Zalo chạy trên Vercel, tách riêng để chỉ deploy khi thư mục relay/ thay đổi.
+name: Deploy relay Zalo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - relay/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Vercel
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: relay-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run tests/zalo-relay.test.ts
+      - name: Deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: npx --yes vercel@latest deploy relay --prod --yes --name family-memorial-zalo-relay --token "$VERCEL_TOKEN"
+      # Secret sai phải bị từ chối: 401 cho thấy relay chạy và gọi được Worker.
+      - name: Kiểm tra sau deploy
+        run: |
+          test "$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --retry-all-errors -X POST -H 'content-type: application/json' -H 'x-bot-api-secret-token: ci-probe' -d '{}' https://family-memorial-zalo-relay.vercel.app/api/zalo)" = 401

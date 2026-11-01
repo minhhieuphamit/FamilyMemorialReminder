@@ -1,0 +1,53 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "family-memorial-reminder",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  // Frontend (React build) và API chạy chung một Worker.
+  // Chỉ /api/*, /telegram/*, /zalo/* và /cards/* đi qua Worker; còn lại là file tĩnh miễn phí, không tính request Worker.
+  "assets": {
+    "directory": "./frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/api/*",
+      "/telegram/*",
+      "/zalo/*",
+      "/cards/*"
+    ]
+  },
+  // Telegram và Zalo tải ảnh thiệp từ địa chỉ này. Khi chạy local, ghi đè trong .dev.vars bằng địa chỉ tunnel.
+  "vars": {
+    "PUBLIC_BASE_URL": "https://family-memorial-reminder.minhhieupham2002.workers.dev",
+    // Cloudflare chặn webhook của Zalo trên workers.dev nên Zalo gọi qua relay (thư mục relay/, xem ZALO_SETUP.md).
+    "ZALO_WEBHOOK_URL": "https://family-memorial-zalo-relay.vercel.app/api/zalo",
+    // Tên hiển thị của bot trên Zalo; đổi tên bot thì đổi theo để câu hỏi trong nhóm được hiểu đúng.
+    "ZALO_BOT_NAME": "Bot Nhắc lịch giỗ gia đình"
+  },
+  // Cron chạy theo UTC. Việt Nam = UTC+7.
+  //   "0 0 * * *"    = 07:00 mỗi ngày giờ Việt Nam: đợt gửi chính.
+  //   "30 0-3 * * *" = 07:30, 08:30, 09:30, 10:30 giờ Việt Nam: gửi lại các tin lỗi.
+  // Mọi lần chạy đều idempotent nhờ dedupe_key nên không gửi trùng.
+  "triggers": {
+    "crons": [
+      "0 0 * * *",
+      "30 0-3 * * *"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "family-memorial-db",
+      // Thay bằng database_id do lệnh `npx wrangler d1 create family-memorial-db` trả về.
+      "database_id": "87d17d28-cded-485b-806c-39df652afb1e",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+  // Secrets (KHÔNG ghi vào file này), đặt bằng `npx wrangler secret put <TÊN>`:
+  //   ADMIN_PASSWORD, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET
+  //   Nếu dùng Zalo: ZALO_BOT_TOKEN, ZALO_WEBHOOK_SECRET
+  //   Nếu gửi ảnh thiệp: BROWSER_RUN_ACCOUNT_ID, BROWSER_RUN_TOKEN
+}
