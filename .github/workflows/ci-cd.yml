@@ -30,7 +30,8 @@ jobs:
   deploy:
     name: Deploy Cloudflare
     needs: check
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # Fork không có secret và không được deploy vào hệ thống thật.
+    if: github.repository == 'minhhieuphamit/FamilyMemorialReminder' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment: production
     # Hai lần push sát nhau chạy lần lượt, không hủy giữa chừng khi đang migrate.

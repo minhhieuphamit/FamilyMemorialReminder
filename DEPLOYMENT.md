@@ -195,7 +195,7 @@ curl "http://localhost:8787/cdn-cgi/handler/scheduled?cron=0+0+*+*+*"
 
 Mỗi pull request và push đều chạy type check, test, build và `wrangler deploy --dry-run`. Riêng push lên `main`, sau khi kiểm tra đạt, workflow chạy migration rồi deploy Worker. Relay Zalo chỉ deploy khi thư mục `relay/` thay đổi. Xem [ci-cd.yml](.github/workflows/ci-cd.yml) và [deploy-relay.yml](.github/workflows/deploy-relay.yml).
 
-Vào **Settings → Secrets and variables → Actions** của repo GitHub và thêm:
+Vào **Settings → Environments** của repo GitHub, tạo environment `production` và thêm vào đó (để chỉ job deploy đọc được):
 
 | Secret | Giá trị |
 | --- | --- |

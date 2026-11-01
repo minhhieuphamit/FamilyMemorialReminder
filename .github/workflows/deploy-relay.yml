@@ -14,6 +14,7 @@ permissions:
 jobs:
   deploy:
     name: Deploy Vercel
+    if: github.repository == 'minhhieuphamit/FamilyMemorialReminder'
     runs-on: ubuntu-latest
     environment: production
     concurrency:
