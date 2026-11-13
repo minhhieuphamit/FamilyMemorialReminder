@@ -3,7 +3,6 @@
   "functions": {
     "api/card.ts": {
       "includeFiles": "assets/**",
-      "memory": 1024,
       "maxDuration": 30
     }
   }
