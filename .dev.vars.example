@@ -14,8 +14,11 @@ TELEGRAM_WEBHOOK_SECRET=doi-chuoi-bi-mat-nay
 ZALO_BOT_TOKEN=
 ZALO_WEBHOOK_SECRET=doi-chuoi-bi-mat-zalo
 
-# Không bắt buộc: gửi ảnh thiệp. Thiếu một trong ba giá trị thì nhắc được gửi bằng chữ.
+# Không bắt buộc: gửi ảnh thiệp. Thiếu cấu hình thì nhắc được gửi bằng chữ.
 # PUBLIC_BASE_URL phải là địa chỉ công khai, khi chạy local là địa chỉ tunnel.
 PUBLIC_BASE_URL=https://xxx.trycloudflare.com
+# Cách chính: dịch vụ vẽ ảnh trên Vercel (CARD_RENDER_URL đã có trong wrangler.jsonc), secret trùng với biến của Vercel.
+CARD_RENDER_SECRET=
+# Dự phòng khi Vercel lỗi: Cloudflare Browser Run.
 BROWSER_RUN_ACCOUNT_ID=
 BROWSER_RUN_TOKEN=

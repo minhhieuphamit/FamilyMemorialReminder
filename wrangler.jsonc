@@ -19,6 +19,8 @@
   // Telegram và Zalo tải ảnh thiệp từ địa chỉ này. Khi chạy local, ghi đè trong .dev.vars bằng địa chỉ tunnel.
   "vars": {
     "PUBLIC_BASE_URL": "https://family-memorial-reminder.minhhieupham2002.workers.dev",
+    // Dịch vụ vẽ ảnh thiệp trên Vercel (relay/api/card.ts). Cần thêm secret CARD_RENDER_SECRET ở cả Worker và Vercel.
+    "CARD_RENDER_URL": "https://family-memorial-zalo-relay.vercel.app/api/card",
     // Cloudflare chặn webhook của Zalo trên workers.dev nên Zalo gọi qua relay (thư mục relay/, xem ZALO_SETUP.md).
     "ZALO_WEBHOOK_URL": "https://family-memorial-zalo-relay.vercel.app/api/zalo",
     // Tên hiển thị của bot trên Zalo; đổi tên bot thì đổi theo để câu hỏi trong nhóm được hiểu đúng.
@@ -49,5 +51,5 @@
   // Secrets (KHÔNG ghi vào file này), đặt bằng `npx wrangler secret put <TÊN>`:
   //   ADMIN_PASSWORD, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET
   //   Nếu dùng Zalo: ZALO_BOT_TOKEN, ZALO_WEBHOOK_SECRET
-  //   Nếu gửi ảnh thiệp: BROWSER_RUN_ACCOUNT_ID, BROWSER_RUN_TOKEN
+  //   Nếu gửi ảnh thiệp: CARD_RENDER_SECRET (trùng với Vercel); dự phòng: BROWSER_RUN_ACCOUNT_ID, BROWSER_RUN_TOKEN
 }

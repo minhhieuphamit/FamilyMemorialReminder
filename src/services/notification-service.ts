@@ -55,6 +55,36 @@ export function remindersForChat(due: ReminderItem[], chat: NotificationChat): R
   return due.filter((item) => visible.has(item.event.id));
 }
 
+/** Nhắc đến hạn trong ngày `day` (đã áp cấu hình gia đình) cùng danh sách chat nhận thông báo. */
+async function loadDueReminders(db: D1Database, day: ISODate, familyId?: number | null) {
+  const [allEvents, settings, chats, familyConfigs] = await Promise.all([
+    listEvents(db),
+    listReminderSettings(db),
+    listNotificationChats(db),
+    listFamilyCronConfigs(db),
+  ]);
+  const offsets = settings.filter((s) => s.enabled).map((s) => s.daysBefore);
+  const events = familyId == null ? allEvents : allEvents.filter((e) => e.familyId === familyId);
+  return { due: findDueReminders(applyFamilyConfigs(events, familyConfigs), offsets, day), chats };
+}
+
+/**
+ * Tạo sẵn ảnh thiệp cho các nhắc của ngày mai, chỉ những nhắc có chat nhận được ảnh.
+ * Chạy ở các lượt cron gửi lại trong ngày, nên đợt 07:00 hôm sau đã có ảnh, không phải chờ tạo nhiều ảnh liên tiếp.
+ * Nội dung ngày giỗ đổi sau đó thì ảnh mới được tạo lúc gửi như bình thường.
+ */
+export async function prerenderTomorrowCards(db: D1Database, senders: Senders, cards: CardProvider | null, now: Date): Promise<number> {
+  if (!cards || !(await getNotificationsEnabled(db))) return 0;
+  const { due, chats } = await loadDueReminders(db, addDays(todayInVietnam(now), 1));
+  const photoChats = chats.filter((chat) => senders[chat.channel]?.sendPhoto);
+  let ready = 0;
+  for (const item of due) {
+    if (!photoChats.some((chat) => remindersForChat([item], chat).length > 0)) continue;
+    if (await cards.imageUrlFor(item)) ready++;
+  }
+  return ready;
+}
+
 /**
  * Mặc định mỗi nhắc chỉ gửi thành công một lần, dùng cho cron.
  * force (nút "Chạy ngay") gửi lại cả những nhắc đã gửi; nhắc chưa gửi vẫn được đánh dấu để cron không gửi thêm lần nữa.
@@ -71,16 +101,8 @@ export async function runReminders(
   if (!senders.telegram && !senders.zalo) return { ...result, note: 'Chưa cấu hình kênh gửi nào' };
   if (!(await getNotificationsEnabled(db))) return { ...result, note: 'Thông báo đang tắt' };
 
-  const [allEvents, settings, allChats, familyConfigs] = await Promise.all([
-    listEvents(db),
-    listReminderSettings(db),
-    listNotificationChats(db),
-    listFamilyCronConfigs(db),
-  ]);
+  const { due, chats: allChats } = await loadDueReminders(db, today, options.familyId);
   const chats = allChats.filter((chat) => senders[chat.channel]);
-  const offsets = settings.filter((s) => s.enabled).map((s) => s.daysBefore);
-  const events = options.familyId == null ? allEvents : allEvents.filter((e) => e.familyId === options.familyId);
-  const due = findDueReminders(applyFamilyConfigs(events, familyConfigs), offsets, today);
   result.due = due.length;
   if (due.length === 0) return result;
   if (chats.length === 0) return { ...result, note: 'Chưa có Chat ID nhận thông báo' };

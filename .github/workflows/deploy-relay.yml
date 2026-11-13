@@ -26,8 +26,12 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            relay/package-lock.json
       - run: npm ci
-      - run: npx vitest run tests/zalo-relay.test.ts
+      - run: npm ci --prefix relay
+      - run: npx vitest run tests/zalo-relay.test.ts tests/card-service.test.ts
       - name: Deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -36,3 +40,6 @@ jobs:
       - name: Kiểm tra sau deploy
         run: |
           test "$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --retry-all-errors -X POST -H 'content-type: application/json' -H 'x-bot-api-secret-token: ci-probe' -d '{}' https://family-memorial-zalo-relay.vercel.app/api/zalo)" = 401
+          # Hàm vẽ thiệp: 401 là đã có CARD_RENDER_SECRET; 503 là chưa đặt biến này trên Vercel (Worker sẽ dùng Browser Run).
+          status="$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --retry-all-errors -X POST -H 'content-type: application/json' -H 'x-card-secret: ci-probe' -d '{}' https://family-memorial-zalo-relay.vercel.app/api/card)"
+          if [ "$status" = 503 ]; then echo "::warning::Chưa đặt CARD_RENDER_SECRET trên Vercel, thiệp sẽ dùng Browser Run"; else test "$status" = 401; fi

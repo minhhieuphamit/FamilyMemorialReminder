@@ -22,6 +22,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # Test hàm vẽ thiệp của relay Vercel cần thư viện riêng của relay.
+      - run: npm ci --prefix relay
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

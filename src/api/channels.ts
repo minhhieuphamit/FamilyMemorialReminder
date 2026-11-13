@@ -4,7 +4,7 @@ import { createChat, deleteChat, linkChatToFamily, listChats, unlinkChatFromFami
 import { listFamilies } from '../database/families-repo';
 import { insertTestLog, listLogs } from '../database/logs-repo';
 import { familyScope, requireAdmin, visibleEvents } from '../middleware/auth';
-import { CardRenderError, createCardProvider, isCardConfigured, renderCardHtml, renderCardImage } from '../services/card-image';
+import { CardRenderError, createCardProvider, isCardConfigured, renderCardOnce } from '../services/card-image';
 import { createSenders } from '../services/channel-senders';
 import { nearestItems } from '../services/memorial-service';
 import { runReminders } from '../services/notification-service';
@@ -264,17 +264,17 @@ channelRoutes.post('/notifications/run-now', async (c) => {
 // Xem thử ảnh thiệp bằng ngày giỗ gần nhất của tài khoản đang đăng nhập.
 channelRoutes.post('/notifications/card-preview', async (c) => {
   if (!isCardConfigured(c.env)) {
-    return c.json({ error: 'Chưa cấu hình ảnh thiệp: cần PUBLIC_BASE_URL, BROWSER_RUN_ACCOUNT_ID và BROWSER_RUN_TOKEN' }, 400);
+    return c.json({ error: 'Chưa cấu hình ảnh thiệp: cần PUBLIC_BASE_URL và CARD_RENDER_URL + CARD_RENDER_SECRET (hoặc BROWSER_RUN_ACCOUNT_ID + BROWSER_RUN_TOKEN)' }, 400);
   }
   const today = todayInVietnam();
   const nearest = nearestItems(await visibleEvents(c), today)[0];
   if (!nearest) return c.json({ error: 'Chưa có ngày giỗ nào để xem thử' }, 400);
-  const html = renderCardHtml({ event: nearest.event, occurrence: nearest.occurrence, daysBefore: nearest.daysLeft }, c.env.PUBLIC_BASE_URL!.replace(/\/+$/, ''));
   try {
-    return c.body(await renderCardImage(c.env, html), 200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' });
+    const image = await renderCardOnce(c.env, { event: nearest.event, occurrence: nearest.occurrence, daysBefore: nearest.daysLeft });
+    return c.body(image, 200, { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' });
   } catch (err) {
     const status = err instanceof CardRenderError ? err.status : 0;
-    const message = status === 429 ? 'Cloudflare chỉ cho tạo 1 ảnh mỗi 10 giây, vui lòng thử lại sau' : `Không tạo được ảnh: ${errorMessage(err)}`;
+    const message = status === 429 ? 'Cloudflare chỉ cho tạo 1 ảnh mỗi 20 giây, vui lòng thử lại sau' : `Không tạo được ảnh: ${errorMessage(err)}`;
     return c.json({ error: message }, 502);
   }
 });

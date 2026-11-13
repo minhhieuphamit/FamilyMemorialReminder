@@ -18,6 +18,7 @@ function botContext(c: Context<AppEnv>) {
     zaloBotName: c.env.ZALO_BOT_NAME,
     cards: createCardProvider(c.env, {
       maxRenders: 1,
+      retries: 0,
       fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(CARD_RENDER_TIMEOUT_MS) }),
     }),
   };

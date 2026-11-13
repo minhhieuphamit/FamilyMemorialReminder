@@ -4,10 +4,10 @@ import { createChat } from '../src/database/chats-repo';
 import { deleteOldCards, saveCard } from '../src/database/cards-repo';
 import { createEvent } from '../src/database/events-repo';
 import { createFamily } from '../src/database/families-repo';
-import { cardCaption, createCardProvider, isCardConfigured, MAX_RENDERS_PER_RUN, renderCardHtml, type CardProvider } from '../src/services/card-image';
+import { cardCaption, createCardProvider, isCardConfigured, MAX_RENDERS_PER_RUN, MIN_RENDER_GAP_MS, renderCardHtml, type CardProvider } from '../src/services/card-image';
 import { zaloSender } from '../src/services/channel-senders';
 import type { ReminderItem } from '../src/services/message-format';
-import { runReminders } from '../src/services/notification-service';
+import { prerenderTomorrowCards, runReminders } from '../src/services/notification-service';
 import { BotApiError } from '../src/services/bot-api';
 import { createTelegramClient } from '../src/services/telegram-client';
 import { createZaloClient } from '../src/services/zalo-client';
@@ -36,12 +36,15 @@ describe('Nội dung thiệp', () => {
     expect(html).not.toContain(`${BASE}/card-bg.jpg`);
   });
 
-  it('không phụ thuộc web font khi chụp, tránh ảnh trắng chữ và bỏ cache thiệp lỗi', () => {
+  it('nhúng sẵn font tiếng Việt, không tải gì qua mạng, chỉ chụp khi font đã nạp xong', () => {
     const html = renderCardHtml(item(), BASE);
     expect(html).not.toContain('fonts.googleapis.com');
     expect(html).not.toContain('<link');
-    expect(html).not.toContain('@font-face');
-    expect(html).toContain("font-family:Georgia,'Times New Roman',serif");
+    expect(html).not.toMatch(/url\(https?:/);
+    expect(html).toContain("font-family:'Card Serif'");
+    expect(html.match(/@font-face\{font-family:'Card Serif'[^}]*src:url\(data:font\/woff2;base64,/g)).toHaveLength(4);
+    expect(html).toContain('U+1EA0-1EF9');
+    expect(html).toContain("setAttribute('data-ready'");
     for (const label of ['Người mất:', 'Gia đình:', 'Ngày giỗ âm:', 'Ngày dương:', 'Còn lại:']) expect(html).toContain(label);
   });
 
@@ -59,8 +62,9 @@ describe('Nội dung thiệp', () => {
   it('thoát HTML: tên không chèn được mã vào trang chụp ảnh', () => {
     const html = renderCardHtml(item({ event: makeEvent({ fullName: '<img src=x onerror=alert(1)>', relationship: '<b>', familyName: '</div><script>' }) }), BASE);
     expect(html).not.toContain('<img src=x');
-    expect(html).not.toContain('<script>');
+    expect(html).not.toContain('</div><script>');
     expect(html).toContain('&lt;img src=x');
+    expect(html).toContain('&lt;/div&gt;&lt;script&gt;');
   });
 
   it('tên rất dài được rút gọn trên ảnh, chú thích vẫn đầy đủ', () => {
@@ -154,12 +158,18 @@ describe('Tạo và lưu ảnh', () => {
     expect(calls).toBe(2);
   });
 
-  it('chờ đủ 10 giây giữa hai lần tạo ảnh', async () => {
+  it('chờ hơn 20 giây tính từ lúc lần trước xong, theo giới hạn trình duyệt mới của Free Plan', async () => {
     const waits: number[] = [];
-    const provider = createCardProvider(env, { now: () => 1000, sleep: async (ms) => void waits.push(ms), fetch: (async () => image()) as typeof fetch })!;
+    let clock = 1000;
+    const provider = createCardProvider(env, {
+      now: () => clock,
+      sleep: async (ms) => void waits.push(ms),
+      fetch: (async () => ((clock += 4000), image())) as typeof fetch,
+    })!;
     await provider.imageUrlFor(item());
     await provider.imageUrlFor(item({ daysBefore: 3 }));
-    expect(waits).toEqual([10_500]);
+    expect(waits).toEqual([MIN_RENDER_GAP_MS]);
+    expect(MIN_RENDER_GAP_MS).toBeGreaterThan(20_000);
   });
 
   it('giới hạn số ảnh tạo mỗi lượt, phần vượt trả về null', async () => {
@@ -171,34 +181,82 @@ describe('Tạo và lưu ảnh', () => {
     expect(results.filter((r) => r === null)).toHaveLength(2);
   });
 
-  it.each([[429], [401], [403]])('lỗi %i thì dừng tạo ảnh cả lượt, trả null thay vì ném lỗi', async (status) => {
+  const failing = (status: number, message = 'x', headers: Record<string, string> = {}) =>
+    new Response(JSON.stringify({ errors: [{ message }] }), { status, headers: { 'content-type': 'application/json', ...headers } });
+
+  it('bị 429 thì chờ theo Retry-After rồi thử lại, ảnh thứ hai vẫn được tạo', async () => {
+    const waits: number[] = [];
     let calls = 0;
     const provider = createCardProvider(env, {
-      sleep: async () => {},
-      fetch: (async () => (calls++, new Response(JSON.stringify({ errors: [{ message: 'x' }] }), { status }))) as typeof fetch,
+      now: () => 0,
+      sleep: async (ms) => void waits.push(ms),
+      fetch: (async () => (++calls === 2 ? failing(429, 'Rate limit exceeded', { 'retry-after': '30' }) : image())) as typeof fetch,
     })!;
+    expect(await provider.imageUrlFor(item())).not.toBeNull();
+    expect(await provider.imageUrlFor(item({ daysBefore: 3 }))).not.toBeNull();
+    expect(calls).toBe(3);
+    expect(waits).toEqual([MIN_RENDER_GAP_MS, 30_000]);
+    expect(raw.prepare('SELECT COUNT(*) AS n FROM card_images').get()).toEqual({ n: 2 });
+  });
+
+  it('vẫn 429 sau khi đã thử lại thì dừng cả lượt, trả null thay vì ném lỗi', async () => {
+    let calls = 0;
+    const provider = createCardProvider(env, { sleep: async () => {}, fetch: (async () => (calls++, failing(429))) as typeof fetch })!;
+    expect(await provider.imageUrlFor(item())).toBeNull();
+    expect(await provider.imageUrlFor(item({ daysBefore: 3 }))).toBeNull();
+    expect(calls).toBe(3);
+  });
+
+  it.each([
+    ['sai token 401', failing(401)],
+    ['sai quyền 403', failing(403)],
+    ['hết 10 phút trong ngày', failing(429, 'Unable to create new browser: code: 429: message: Browser time limit exceeded for today')],
+  ])('%s: không thử lại, dừng cả lượt', async (_name, response) => {
+    let calls = 0;
+    const provider = createCardProvider(env, { sleep: async () => {}, fetch: (async () => (calls++, response.clone())) as typeof fetch })!;
     expect(await provider.imageUrlFor(item())).toBeNull();
     expect(await provider.imageUrlFor(item({ daysBefore: 3 }))).toBeNull();
     expect(calls).toBe(1);
   });
 
-  it('lỗi tạm thời hoặc mạng: trả null, ảnh sau vẫn thử', async () => {
+  it('lỗi mạng hoặc 5xx: thử lại rồi thành công', async () => {
     let calls = 0;
     const provider = createCardProvider(env, {
       sleep: async () => {},
       fetch: (async () => {
-        if (++calls === 1) throw new Error('network');
+        calls++;
+        if (calls === 1) throw new Error('network');
+        if (calls === 2) return failing(502);
         return image();
       }) as typeof fetch,
     })!;
+    expect(await provider.imageUrlFor(item())).not.toBeNull();
+    expect(calls).toBe(3);
+  });
+
+  it('retries: 0 (webhook) thì không thử lại để trả lời kịp', async () => {
+    let calls = 0;
+    const provider = createCardProvider(env, { retries: 0, sleep: async () => {}, fetch: (async () => (calls++, failing(503))) as typeof fetch })!;
     expect(await provider.imageUrlFor(item())).toBeNull();
-    expect(await provider.imageUrlFor(item({ daysBefore: 3 }))).not.toBeNull();
+    expect(calls).toBe(1);
+    expect(await provider.imageUrlFor(item({ daysBefore: 3 }))).toBeNull();
+    expect(calls).toBe(2);
   });
 
   it('API trả 200 mà không phải ảnh thì không lưu', async () => {
-    const provider = createCardProvider(env, { fetch: (async () => new Response('{"success":false}', { headers: { 'content-type': 'application/json' } })) as typeof fetch })!;
+    const provider = createCardProvider(env, {
+      sleep: async () => {},
+      fetch: (async () => new Response('{"success":false}', { headers: { 'content-type': 'application/json' } })) as typeof fetch,
+    })!;
     expect(await provider.imageUrlFor(item())).toBeNull();
     expect(raw.prepare('SELECT COUNT(*) AS n FROM card_images').get()).toEqual({ n: 0 });
+  });
+
+  it('chờ chữ sẵn sàng trước khi chụp', async () => {
+    let body: Record<string, unknown> = {};
+    const provider = createCardProvider(env, { fetch: (async (_u: string, init: RequestInit) => ((body = JSON.parse(init.body as string)), image())) as unknown as typeof fetch })!;
+    await provider.imageUrlFor(item());
+    expect(body.waitForSelector).toMatchObject({ selector: 'html[data-ready]' });
   });
 
   it('dọn ảnh cũ quá 14 ngày, giữ ảnh mới', async () => {
@@ -270,6 +328,26 @@ describe('Gửi nhắc kèm ảnh', () => {
     expect(cards.calls).toBe(1);
     const { results } = await db.prepare(`SELECT status, provider_message_id FROM notification_logs`).all();
     expect(results).toEqual([{ status: 'sent', provider_message_id: 'photo-1' }, { status: 'sent', provider_message_id: 'photo-1' }]);
+  });
+
+  it('tạo sẵn ảnh cho nhắc của ngày mai, không gửi tin nào', async () => {
+    const fake = makeFakeSender();
+    const cards = fixedCards();
+    expect(await prerenderTomorrowCards(db, { telegram: fake.sender }, cards, VN_7AM('2026-09-21'))).toBe(1);
+    expect(cards.calls).toBe(1);
+    expect(fake.photos).toEqual([]);
+    expect(fake.sent).toEqual([]);
+    // Hôm nay chưa có nhắc nào đến hạn ngày mai thì không tốn lượt tạo ảnh.
+    expect(await prerenderTomorrowCards(db, { telegram: fake.sender }, cards, VN_7AM('2026-09-10'))).toBe(0);
+    expect(cards.calls).toBe(1);
+  });
+
+  it('không kênh nào gửi được ảnh thì không tạo sẵn', async () => {
+    const fake = makeFakeSender();
+    const cards = fixedCards();
+    const { sendPhoto: _drop, ...textOnly } = fake.sender;
+    expect(await prerenderTomorrowCards(db, { telegram: textOnly }, cards, VN_7AM('2026-09-21'))).toBe(0);
+    expect(cards.calls).toBe(0);
   });
 
   it('không tạo được ảnh thì gửi bằng chữ', async () => {

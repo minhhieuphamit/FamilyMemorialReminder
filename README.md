@@ -70,9 +70,9 @@ Có hai loại tài khoản:
 
 Mỗi nhắc được gửi thành một ảnh thiệp có tên, gia đình, ngày âm, ngày dương và số ngày còn lại, kèm lời nhắn bên dưới. Ảnh được tạo tự động theo từng ngày giỗ, không dùng AI.
 
-Worker miễn phí chỉ có 10 ms CPU nên không tự vẽ ảnh được. Ứng dụng gửi HTML của thiệp cho **Cloudflare Browser Run** (Free Plan: 10 phút trình duyệt mỗi ngày, 1 yêu cầu mỗi 10 giây) rồi chờ kết quả; thời gian chờ không tính CPU. Ảnh được lưu trong D1 14 ngày, cùng nội dung thì dùng lại. Telegram và Zalo tải ảnh qua địa chỉ `/cards/<mã ngẫu nhiên 256 bit>.jpg`, không cần đăng nhập nhưng không đoán được.
+Worker miễn phí chỉ có 10 ms CPU nên không tự vẽ ảnh được. Ứng dụng gửi dữ liệu thiệp cho một hàm trên **Vercel** (`relay/api/card.ts`, vẽ bằng Satori, dưới 1 giây mỗi ảnh, không giới hạn tốc độ) rồi chờ kết quả; thời gian chờ không tính CPU. Vercel lỗi thì dùng dự phòng **Cloudflare Browser Run** (Free Plan: 10 phút trình duyệt mỗi ngày, 1 ảnh mỗi 20 giây). Các lượt cron gửi lại trong ngày tạo sẵn ảnh cho nhắc của ngày mai. Ảnh được lưu trong D1 14 ngày, cùng nội dung thì dùng lại. Telegram và Zalo tải ảnh qua địa chỉ `/cards/<mã ngẫu nhiên 256 bit>.jpg`, không cần đăng nhập nhưng không đoán được.
 
-Tính năng này tùy chọn, cách bật ở [DEPLOYMENT.md](DEPLOYMENT.md) mục "Bật ảnh thiệp". Chưa cấu hình, hết hạn mức, hoặc nền tảng từ chối ảnh thì tin nhắc tự chuyển sang dạng chữ. Mỗi lượt tạo tối đa 6 ảnh, các nhắc còn lại được gộp thành một tin chữ.
+Tính năng này tùy chọn, cách bật ở [DEPLOYMENT.md](DEPLOYMENT.md) mục "Bật ảnh thiệp". Chưa cấu hình, hết hạn mức, hoặc nền tảng từ chối ảnh thì tin nhắc tự chuyển sang dạng chữ. Khi phải dùng Browser Run, mỗi lượt tạo tối đa 6 ảnh, các nhắc còn lại được gộp thành một tin chữ.
 
 Ảnh nền nằm ở `frontend/public/card-bg.jpg`, thay file này để đổi phong cách. Bố cục ở `src/services/card-image.ts`.
 
@@ -131,7 +131,7 @@ src/
     bot-api.ts             Gọi API bot, có retry, không lộ token
     telegram-client.ts, zalo-client.ts  Các method của từng nền tảng
     channel-senders.ts     Lớp gửi tin chung cho mọi kênh
-    card-image.ts          Thiệp: HTML, lời nhắn, gọi Browser Run
+    card-image.ts          Thiệp: dữ liệu, lời nhắn, gọi Vercel rồi Browser Run dự phòng
   scheduler/cron.ts        Xử lý Cron Trigger
   database/                Repository, chỉ dùng prepared statements
   middleware/              auth, kiểm tra nguồn gửi, rate limit

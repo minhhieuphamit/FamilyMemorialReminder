@@ -123,15 +123,29 @@ Xem [ZALO_SETUP.md](ZALO_SETUP.md).
 
 Không làm bước này thì nhắc vẫn gửi bình thường bằng chữ.
 
-1. Kiểm tra `PUBLIC_BASE_URL` trong `wrangler.jsonc` đúng địa chỉ Worker của bạn.
-2. Vào [API Tokens](https://dash.cloudflare.com/profile/api-tokens), **Create Token**, **Custom token**, cấp quyền **Account** → **Browser Rendering** (có thể hiện là **Browser Run**) → **Edit**, rồi tạo token.
-3. Lấy Account ID:
+Ảnh được vẽ bởi hàm `relay/api/card.ts` trên Vercel (cùng project với relay Zalo, xem [ZALO_SETUP.md](ZALO_SETUP.md)). Cloudflare Browser Run là dự phòng khi Vercel lỗi; có thể bỏ qua phần dự phòng.
+
+1. Kiểm tra `PUBLIC_BASE_URL` và `CARD_RENDER_URL` trong `wrangler.jsonc` đúng địa chỉ Worker và relay Vercel của bạn.
+2. Tạo một chuỗi ngẫu nhiên dài (ví dụ `openssl rand -hex 32`) làm secret dùng chung:
+   - Trên Vercel: project relay → **Settings** → **Environment Variables**, thêm `CARD_RENDER_SECRET` cho môi trường Production, rồi deploy lại relay.
+   - Trên Worker:
+
+```bash
+npx wrangler secret put CARD_RENDER_SECRET
+```
+
+3. Trên website vào **Nhắc nhở**, bấm **Xem thử thiệp**.
+
+Dự phòng bằng Browser Run (tùy chọn):
+
+1. Vào [API Tokens](https://dash.cloudflare.com/profile/api-tokens), **Create Token**, **Custom token**, cấp quyền **Account** → **Browser Rendering** (có thể hiện là **Browser Run**) → **Edit**, rồi tạo token.
+2. Lấy Account ID:
 
 ```bash
 npx wrangler whoami
 ```
 
-4. Đặt hai secret:
+3. Đặt hai secret:
 
 ```bash
 npx wrangler secret put BROWSER_RUN_ACCOUNT_ID
@@ -141,9 +155,7 @@ npx wrangler secret put BROWSER_RUN_ACCOUNT_ID
 npx wrangler secret put BROWSER_RUN_TOKEN
 ```
 
-5. Trên website vào **Nhắc nhở**, bấm **Xem thử thiệp**.
-
-Khi chạy local, thêm ba giá trị này vào `.dev.vars`, với `PUBLIC_BASE_URL` là địa chỉ tunnel: Browser Run và các nền tảng không tải được ảnh từ `localhost`.
+Khi chạy local, thêm các giá trị này vào `.dev.vars`, với `PUBLIC_BASE_URL` là địa chỉ tunnel: các nền tảng không tải được ảnh từ `localhost`.
 
 ## 11. Cron Trigger lúc 07:00 giờ Việt Nam
 
