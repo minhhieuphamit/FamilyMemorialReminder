@@ -33,7 +33,7 @@ export function Registrations({ onApproved }: { onApproved: () => void }) {
   return <section id="dang-ky" className="card scroll-mt-6">
     <div className="space-y-3 border-b border-line p-4">
       <h2 className="font-semibold">Đăng ký thành viên theo gia đình</h2>
-      <p className="text-sm text-muted">Người dùng nhắn riêng cho bot: <code>/dangky Tên gia đình | Họ tên</code>, hoặc mở <a href="/dang-ky" className="underline">form đăng ký</a>. Chỉ được truy cập sau khi admin duyệt.</p>
+      <p className="text-sm text-muted">Người dùng nhắn riêng cho bot: <code>/dangky [mã gia đình] [họ tên]</code> (mã xem bằng <code>/giadinh</code>), hoặc mở <a href="/dang-ky" className="underline">form đăng ký</a>. Chỉ được truy cập sau khi admin duyệt.</p>
       <h3 className="font-medium">Admin duyệt và nhận thông báo</h3>
       <p className="hint">Thêm Chat ID Telegram/Zalo của người quản lý. Các chat này được duyệt hoặc từ chối đăng ký qua bot (<code>/choduyet</code>, <code>/duyet 12</code>, <code>/tuchoi 12</code>) và nhận thông báo khi có quyết định, kể cả quyết định trên website. Chỉ thêm chat bạn tin tưởng; quyền này không cho đăng nhập website.</p>
       {config.error && <ErrorBox message={config.error} onRetry={config.reload}/>}

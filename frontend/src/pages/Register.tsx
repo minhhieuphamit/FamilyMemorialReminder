@@ -37,7 +37,7 @@ export function Register() {
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       <button className="btn btn-primary w-full" disabled={busy}>{busy?'Đang xử lý...':token?'Xác nhận và gửi đăng ký':'Gửi mã xác nhận'}</button>
     </form>}
-    <p className="text-sm text-muted">Hoặc nhắn trực tiếp cho bot: <code>/dangky Tên gia đình | Họ tên</code></p>
+    <p className="text-sm text-muted">Hoặc nhắn trực tiếp cho bot: <code>/dangky [mã gia đình] [họ tên]</code>, gửi <code>/giadinh</code> để xem mã</p>
     <Link className="inline-block text-sm underline" to="/">Về trang đăng nhập / trang chủ</Link>
   </div></main>;
 }

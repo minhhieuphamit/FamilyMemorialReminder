@@ -21,15 +21,16 @@ describe('Đăng ký theo gia đình',()=>{
     const user=makeFakeSender();
     for(const text of ['/giadinh','/danhsachgiadinh','có những gia đình nào','/dangky']) {
       await handleIncoming({channel,chatId:'123',text,isGroup:false},db,user.sender,now);
-      expect(user.sent.at(-1)?.text).toContain('/dangky Nhà ngoại | Họ tên của bạn');
+      expect(user.sent.at(-1)?.text).toContain(`<b>${familyId}</b> – Nhà ngoại`);
       expect(user.sent.at(-1)?.text).toContain('Nhà nội');
+      expect(user.sent.at(-1)?.text).toContain('/dangky [mã] [họ tên của bạn]');
     }
     expect(await getChatAccess(db,channel,'123')).toBeNull();
     expect((await listRegistrations(db,'',1,10)).total).toBe(0);
   });
   it.each(['telegram','zalo'] as const)('%s tách gia đình đã tham gia, chờ duyệt và chưa tham gia theo Chat ID',async(channel)=>{
     const noi=(await createFamily(db,'Nhà nội')).id;
-    await createFamily(db,'Nhà chú');
+    const chu=(await createFamily(db,'Nhà chú')).id;
     await createChat(db,{channel,chatId:'123',title:'Test',canQuery:true,receiveNotifications:true,allFamilies:false,familyIds:[familyId]});
     await submitRegistration(db,channel,'123','Test',noi);
     const user=makeFakeSender();
@@ -40,9 +41,10 @@ describe('Đăng ký theo gia đình',()=>{
       expect(reply.indexOf('Nhà ngoại')).toBeLessThan(reply.indexOf('Đang chờ duyệt'));
       expect(reply.indexOf('Đang chờ duyệt')).toBeLessThan(reply.indexOf('Nhà nội'));
       expect(reply.indexOf('Nhà nội')).toBeLessThan(reply.indexOf('Chưa tham gia'));
-      expect(reply).toContain('/dangky Nhà chú | Họ tên của bạn');
-      expect(reply).not.toContain('/dangky Nhà ngoại');
-      expect(reply).not.toContain('/dangky Nhà nội');
+      expect(reply.indexOf('Chưa tham gia')).toBeLessThan(reply.indexOf(`<b>${chu}</b> – Nhà chú`));
+      // Ví dụ đăng ký chỉ lấy gia đình chưa tham gia, ví dụ hủy lấy gia đình đã tham gia.
+      expect(reply).toContain(`/dangky ${chu} Lê Minh Anh`);
+      expect(reply).toContain(`/huydangky ${familyId}`);
     }
     const other=channel==='telegram'?'zalo':'telegram';
     await handleIncoming({channel:other,chatId:'123',text:'/giadinh',isGroup:false},db,user.sender,now);
@@ -154,6 +156,16 @@ describe('Đăng ký theo gia đình',()=>{
       expect(await getChatAccess(db,channel,'123')).toEqual({allFamilies:false,familyIds:[noi]});
       expect((await listChats(db))[0]).toMatchObject({title:'Tên cũ',receiveNotifications:true});
     });
+    it.each(['/huydangky 2','hủy đăng ký 2','huy dang ky gia dinh 2','/huydangky #2'])('hủy theo mã: %s',async(text)=>{
+      const noi=(await createFamily(db,'Nhà nội')).id;
+      expect(noi).toBe(2);
+      await createChat(db,{chatId:'123',title:'Test',canQuery:true,receiveNotifications:true,allFamilies:false,familyIds:[familyId,noi]});
+      const user=makeFakeSender();
+      await say('telegram',text,user.sender);
+      expect(user.sent.at(-1)?.text).toContain('Đã hủy đăng ký gia đình Nhà nội');
+      expect(user.sent.at(-1)?.text).toContain(`/dangky ${noi} [họ tên của bạn]`);
+      expect(await getChatAccess(db,'telegram','123')).toEqual({allFamilies:false,familyIds:[familyId]});
+    });
     it('hủy gia đình cuối cùng thì xóa chat và đăng ký lại được',async()=>{
       await createChat(db,{chatId:'123',title:'Test',canQuery:true,receiveNotifications:true,allFamilies:false,familyIds:[familyId]});
       const user=makeFakeSender();
@@ -196,9 +208,12 @@ describe('Đăng ký theo gia đình',()=>{
       await createChat(db,{chatId:'123',title:'Test',canQuery:true,receiveNotifications:true,allFamilies:false,familyIds:[familyId]});
       const user=makeFakeSender();
       await say('telegram','/huydangky',user.sender);
-      expect(user.sent.at(-1)?.text).toContain('/huydangky Nhà ngoại');
+      expect(user.sent.at(-1)?.text).toContain(`/huydangky ${familyId}`);
       await say('telegram','/huydangky Không có',user.sender);
-      expect(user.sent.at(-1)?.text).toContain('/huydangky Nhà ngoại');
+      expect(user.sent.at(-1)?.text).toContain(`/huydangky ${familyId}`);
+      await say('telegram','/huydangky 999',user.sender);
+      expect(user.sent.at(-2)?.text).toContain('Không có gia đình nào mang mã 999');
+      expect(user.sent.at(-1)?.text).toContain(`<b>${familyId}</b> – Nhà ngoại`);
       await say('telegram','/huydangky Nhà ngoại',user.sender,true);
       expect(user.sent.at(-1)?.text).toContain('nhắn riêng');
       expect(await getChatAccess(db,'telegram','123')).toEqual({allFamilies:false,familyIds:[familyId]});
@@ -274,6 +289,54 @@ describe('Đăng ký theo gia đình',()=>{
     const user=makeFakeSender(),admin=makeFakeSender();
     await handleZaloUpdate({event_name:'message.text.received',message:{chat:{id:'z-user',chat_type:'PRIVATE'},text:'đăng ký Nhà ngoại | Người mới'}},db,user.sender,now,{senders:{telegram:admin.sender},baseUrl:'https://gio.test'});
     expect(admin.sent).toHaveLength(1);expect((await listRegistrations(db,'pending',1,10)).requests[0].channel).toBe('zalo');
+  });
+  describe('Đăng ký theo mã gia đình',()=>{
+    let longId:number;
+    beforeEach(async()=>{longId=(await createFamily(db,'Phạm Văn Phát - Nguyễn Thị Hoa')).id;});
+    const register=(text:string,user=makeFakeSender(),channel:'telegram'|'zalo'='telegram')=>handleIncoming({channel,chatId:'123',text,isGroup:false},db,user.sender,now).then(()=>user);
+    it.each(['telegram','zalo'] as const)('%s liệt kê "mã – tên" và đăng ký chỉ bằng mã',async(channel)=>{
+      const user=await register('/dangky',makeFakeSender(),channel);
+      expect(user.sent.at(-1)?.text).toContain(`<b>${longId}</b> – Phạm Văn Phát - Nguyễn Thị Hoa`);
+      await register(`/dangky ${longId} Người mới`,user,channel);
+      expect(user.sent.at(-1)?.text).toContain('cho gia đình Phạm Văn Phát - Nguyễn Thị Hoa');
+      const {requests}=await listRegistrations(db,'pending',1,10);
+      expect(requests).toHaveLength(1);
+      expect(requests[0]).toMatchObject({channel,chat_id:'123',full_name:'Người mới',family_id:longId});
+    });
+    it.each([['/dangky {id} | Người mới'],['/dangky #{id} Người mới'],['/dangky@GioBot {id} Người mới'],['đăng ký {id} Người mới'],['dk {id}   Người mới']])('nhận các cách gõ: %s',async(template)=>{
+      await register(template.replace('{id}',String(longId)));
+      expect((await listRegistrations(db,'pending',1,10)).requests[0]).toMatchObject({full_name:'Người mới',family_id:longId});
+    });
+    it('vẫn nhận tên gia đình đầy đủ kiểu cũ',async()=>{
+      await register('/dangky phạm văn phát - nguyễn thị hoa | Người mới');
+      expect((await listRegistrations(db,'pending',1,10)).requests[0]).toMatchObject({family_id:longId});
+    });
+    it('gia đình có tên là số vẫn khớp tên trước mã',async()=>{
+      const named=(await createFamily(db,'1')).id;
+      expect(named).not.toBe(1);
+      await register('/dangky 1 | Người mới');
+      expect((await listRegistrations(db,'pending',1,10)).requests[0]).toMatchObject({family_id:named});
+    });
+    it('mã không tồn tại thì báo rõ và gửi lại danh sách, không lưu',async()=>{
+      for(const text of ['/dangky 999 Người mới','/dangky 999']) {
+        const user=await register(text);
+        expect(user.sent.at(-2)?.text).toContain('Không có gia đình nào mang mã 999');
+        expect(user.sent.at(-1)?.text).toContain(`<b>${familyId}</b> – Nhà ngoại`);
+        expect(user.sent.at(-1)?.text).toContain(`<b>${longId}</b> – Phạm Văn Phát`);
+      }
+      expect((await listRegistrations(db,'',1,10)).total).toBe(0);
+    });
+    it('chỉ có mã mà thiếu họ tên thì nhắc thêm họ tên, không lưu',async()=>{
+      const user=await register(`/dangky ${longId}`);
+      expect(user.sent.at(-1)?.text).toContain(`Ví dụ: /dangky ${longId} Lê Minh Anh`);
+      expect((await listRegistrations(db,'',1,10)).total).toBe(0);
+    });
+    it('chat đã tham gia gia đình đó thì không tạo yêu cầu mới',async()=>{
+      await createChat(db,{chatId:'123',title:'Test',canQuery:true,receiveNotifications:true,allFamilies:false,familyIds:[longId]});
+      const user=await register(`/dangky ${longId} Người mới`);
+      expect(user.sent.at(-1)?.text).toContain('đã được đăng ký');
+      expect((await listRegistrations(db,'',1,10)).total).toBe(0);
+    });
   });
   it('chặn nhóm, không hợp lệ, gia đình lạ và giới hạn spam',async()=>{
     const user=makeFakeSender();const msg={channel:'telegram' as const,chatId:'123',text:'/dangky Nhà ngoại | Test',isGroup:true};

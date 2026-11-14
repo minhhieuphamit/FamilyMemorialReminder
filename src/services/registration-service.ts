@@ -12,29 +12,48 @@ export interface RegistrationContext { senders: Senders; baseUrl: string; cards?
 const channelLabel = (channel: Channel) => channel === 'zalo' ? 'Zalo' : 'Telegram';
 /** Chat ID nhóm Zalo bắt đầu bằng "zgr-"; báo rõ để admin biết duyệt là cho cả nhóm xem dữ liệu. */
 const requesterLabel = (request: Registration) => channelLabel(request.channel) + (request.channel === 'zalo' && request.chat_id.startsWith('zgr-') ? ' (nhóm)' : '');
+/** Ví dụ họ tên dùng chung trong hướng dẫn, để người dùng thấy ngay cần gõ gì sau mã gia đình. */
+const exampleName = (group: boolean) => group ? 'Con cháu họ Phạm' : 'Lê Minh Anh';
+const registerExample = (id: number | string, group: boolean) => (group ? '@Tên bot ' : '') + `/dangky ${id} ${exampleName(group)}`;
+
+/**
+ * Liệt kê mỗi gia đình dạng "mã – tên" theo trạng thái của Chat ID. Người dùng chỉ cần gõ mã khi đăng ký,
+ * vì tên gia đình thường dài và dễ gõ sai một chữ.
+ */
 export async function sendRegistrationFamilies(db: D1Database, sender: ChannelSender, chatId: string, channel: Channel, mentionedInGroup = false) {
-  const { results } = await db.prepare(`SELECT f.name,
+  const { results } = await db.prepare(`SELECT f.id, f.name,
     EXISTS(SELECT 1 FROM chats c WHERE c.channel=?1 AND c.chat_id=?2 AND
       (c.all_families=1 OR EXISTS(SELECT 1 FROM chat_families cf WHERE cf.chat_row_id=c.id AND cf.family_id=f.id))) AS joined,
     EXISTS(SELECT 1 FROM registration_requests r WHERE r.channel=?1 AND r.chat_id=?2 AND r.family_id=f.id AND r.status='pending') AS pending
-    FROM families f ORDER BY f.name`).bind(channel, chatId).all<{name:string;joined:number;pending:number}>();
-  const section = (title: string, rows: string[]) => rows.length ? ['', `${title} (${rows.length})`, ...rows] : [];
-  const names = (rows: typeof results) => rows.map(f => '• ' + escapeHtml(f.name) + (mentionedInGroup ? '' : '\n/huydangky ' + escapeHtml(f.name)));
-  const notJoined = results.filter(f => !f.joined);
-  const open = notJoined.filter(f => !f.pending);
+    FROM families f ORDER BY f.name`).bind(channel, chatId).all<{id:number;name:string;joined:number;pending:number}>();
+  const section = (title: string, rows: typeof results) => rows.length ? ['', `${title} (${rows.length})`, ...rows.map(f => `• <b>${f.id}</b> – ${escapeHtml(f.name)}`)] : [];
+  const joined = results.filter(f => f.joined);
+  const pending = results.filter(f => !f.joined && f.pending);
+  const open = results.filter(f => !f.joined && !f.pending);
+  const leavable = [...joined, ...pending];
+  const guide = [
+    ...(!open.length ? [] : mentionedInGroup
+      ? ['Đăng ký cho nhóm: gõ @ chọn bot rồi gửi /dangky [mã] [tên nhóm]', `Ví dụ: ${registerExample(open[0].id, true)}`]
+      : ['Đăng ký: /dangky [mã] [họ tên của bạn]', `Ví dụ: ${registerExample(open[0].id, false)}`]),
+    // Trong nhóm không gợi ý tự gỡ, vì gỡ nhóm phải do quản trị viên làm.
+    ...(mentionedInGroup || !leavable.length ? [] : [`Hủy đăng ký: /huydangky [mã], ví dụ /huydangky ${leavable[0].id}`]),
+  ];
   const lines = results.length
     ? ['🏠 <b>Gia đình và trạng thái của bạn</b>',
-        ...section('✅ <b>Đã tham gia</b>', names(results.filter(f => f.joined))),
-        ...section('⏳ <b>Đang chờ duyệt</b>', names(notJoined.filter(f => f.pending))),
-        ...section('➕ <b>Chưa tham gia</b>', open.map(f => '• ' + escapeHtml(f.name) + '\n/dangky ' + escapeHtml(f.name) + ' | Họ tên của bạn')),
-        '', 'Trạng thái theo Chat ID trên kênh bạn đang dùng.' + (!open.length ? '' : mentionedInGroup ? ' Để đăng ký cho nhóm, gõ @ chọn bot rồi gửi lệnh trên và thay “Họ tên của bạn” bằng tên nhóm.' : ' Với gia đình chưa tham gia, nhắn riêng lệnh đăng ký và thay “Họ tên của bạn” bằng tên thật.')]
+        ...section('✅ <b>Đã tham gia</b>', joined),
+        ...section('⏳ <b>Đang chờ duyệt</b>', pending),
+        ...section('➕ <b>Chưa tham gia</b>', open),
+        '', ...guide, 'Trạng thái theo Chat ID trên kênh bạn đang dùng.']
     : ['Hiện chưa có gia đình nào để đăng ký. Vui lòng liên hệ quản trị viên để tạo gia đình trước.'];
   for (const part of splitMessage(lines.join('\n'), sender.messageLimit)) await sender.send(chatId, part);
 }
-export const REGISTRATION_HELP = 'Đăng ký nhận tin theo gia đình:\n/dangky Tên gia đình | Họ tên của bạn\nVí dụ: /dangky Nhà ngoại | Tên của bạn\nGửi /giadinh để xem các gia đình hiện có.\nQuản trị viên sẽ kiểm tra và duyệt trước khi bạn được xem dữ liệu.';
+export const REGISTRATION_HELP = 'Đăng ký nhận tin theo gia đình:\n/dangky [mã gia đình] [họ tên của bạn]\nVí dụ: /dangky 3 Lê Minh Anh\nMã gia đình là số đứng trước tên trong danh sách bên dưới, gửi /giadinh để xem lại.\nQuản trị viên sẽ kiểm tra và duyệt trước khi bạn được xem dữ liệu.';
 
-export const GROUP_REGISTRATION_HELP = 'Đăng ký nhận tin cho cả nhóm:\n@Tên bot /dangky Tên gia đình | Tên nhóm\nPhải gõ @ và chọn bot, Zalo không chuyển tin không nhắc tên bot.\nSau khi quản trị viên duyệt, mọi thành viên nhóm đều xem được dữ liệu của gia đình đó.';
-export const UNREGISTRATION_HELP = 'Hủy đăng ký một gia đình:\n/huydangky Tên gia đình\nVí dụ: /huydangky Nhà ngoại';
+export const GROUP_REGISTRATION_HELP = 'Đăng ký nhận tin cho cả nhóm:\n@Tên bot /dangky [mã gia đình] [tên nhóm]\nVí dụ: @Tên bot /dangky 3 Con cháu họ Phạm\nPhải gõ @ và chọn bot, Zalo không chuyển tin không nhắc tên bot.\nSau khi quản trị viên duyệt, mọi thành viên nhóm đều xem được dữ liệu của gia đình đó.';
+export const UNREGISTRATION_HELP = 'Hủy đăng ký một gia đình:\n/huydangky [mã gia đình]\nVí dụ: /huydangky 3';
+
+/** "3", "#3", "3 Họ tên" hoặc "3 | Họ tên": mã gia đình đứng đầu, phần còn lại là họ tên. */
+const FAMILY_ID_ARGS = /^#?(\d{1,9})(?:\s*\|\s*|\s+|$)([\s\S]*)$/;
 
 export async function notifyRegistrationAdmins(db: D1Database, request: Registration, context: RegistrationContext) {
   const admins = await registrationAdmins(db);
@@ -122,10 +141,13 @@ export async function handleUnregistration(message: IncomingMessage, db: D1Datab
     await sendRegistrationFamilies(db, sender, message.chatId, message.channel); return true;
   }
   const families = await listFamilies(db);
-  // Tên gia đình có thể bắt đầu bằng "Gia đình", nên thử nguyên văn trước rồi mới bỏ từ này.
-  const family = findFamilyByName(families, args) ?? findFamilyByName(families, args.split(/\s+/).slice(2).join(' '));
+  // Câu tự nhiên hay có thêm "gia đình" trước mã hoặc tên, nhưng tên gia đình cũng có thể bắt đầu bằng "Gia đình",
+  // nên thử nguyên văn trước rồi mới bỏ hai chữ đầu. Tên đầy đủ vẫn nhận để không làm hỏng thói quen cũ.
+  const withoutPrefix = args.split(/\s+/).slice(2).join(' ');
+  const id = (args.match(FAMILY_ID_ARGS) ?? (normalizeVietnamese(args).startsWith('gia dinh ') ? withoutPrefix.match(FAMILY_ID_ARGS) : null))?.[1];
+  const family = findFamilyByName(families, args) ?? findFamilyByName(families, withoutPrefix) ?? families.find(f => String(f.id) === id);
   if (!family) {
-    await sender.send(message.chatId, 'Không tìm thấy gia đình này. Chọn đúng tên trong danh sách bên dưới.');
+    await sender.send(message.chatId, (id ? `Không có gia đình nào mang mã ${id}.` : 'Không tìm thấy gia đình này.') + ' Gửi lại với mã trong danh sách bên dưới.');
     await sendRegistrationFamilies(db, sender, message.chatId, message.channel); return true;
   }
   const name = escapeHtml(family.name);
@@ -138,7 +160,7 @@ export async function handleUnregistration(message: IncomingMessage, db: D1Datab
   const remaining = (chat.allFamilies ? families.map(f => f.id) : chat.familyIds).filter(id => id !== family.id);
   if (remaining.length) await updateChat(db, chat.id, { ...chat, allFamilies: false, familyIds: remaining });
   else await deleteChat(db, chat.id);
-  await sender.send(message.chatId, `Đã hủy đăng ký gia đình ${name}. Bạn sẽ không còn nhận nhắc và tra cứu ngày giỗ của gia đình này.\nMuốn tham gia lại: /dangky ${name} | Họ tên của bạn`);
+  await sender.send(message.chatId, `Đã hủy đăng ký gia đình ${name}. Bạn sẽ không còn nhận nhắc và tra cứu ngày giỗ của gia đình này.\nMuốn tham gia lại: /dangky ${family.id} [họ tên của bạn]`);
   return true;
 }
 
@@ -150,22 +172,39 @@ export async function handleRegistration(message: IncomingMessage, db: D1Databas
   const natural = /^(dang ky|dang ki|dk)(\s|$)/.test(normalized);
   if (!command && !natural) return false;
   if (message.isGroup && !message.mentioned) { await sender.send(message.chatId, 'Vui lòng nhắn riêng cho bot để đăng ký bằng Chat ID cá nhân.'); return true; }
-  const args = command ? command[1] ?? '' : text.replace(/^(?:đăng|dang)\s+(?:ký|kí|ky|ki)\s*|^dk\s*/i, '');
+  const args = (command ? command[1] ?? '' : text.replace(/^(?:đăng|dang)\s+(?:ký|kí|ky|ki)\s*|^dk\s*/i, '')).trim();
+  const group = !!message.mentioned;
+  const families = await listFamilies(db);
+  const showFamilies = () => sendRegistrationFamilies(db, sender, message.chatId, message.channel, group);
+  // Cách được hướng dẫn là "mã họ tên". Kiểu cũ "Tên gia đình | Họ tên" vẫn nhận vì form website và người quen tay
+  // còn dùng; thử tên trước để gia đình có tên bắt đầu bằng số không bị hiểu nhầm là mã.
   const parts = args.split('|').map(p => p.trim());
-  if (parts.length !== 2 || !parts[0] || !parts[1] || parts[0].length > 100 || parts[1].length > 100) {
-    await sender.send(message.chatId, message.mentioned ? GROUP_REGISTRATION_HELP : REGISTRATION_HELP);
-    await sendRegistrationFamilies(db, sender, message.chatId, message.channel, message.mentioned); return true;
+  const byName = parts.length === 2 ? findFamilyByName(families, parts[0]) : undefined;
+  const byId = byName ? null : args.match(FAMILY_ID_ARGS);
+  const family = byName ?? families.find(f => String(f.id) === byId?.[1]);
+  const fullName = byName ? parts[1] : byId ? byId[2].trim() : parts.length === 2 ? parts[1] : '';
+  // Không ra mã cũng không ra tên kiểu cũ thì chỉ là hỏi cách đăng ký.
+  const unknown = family ? null : byId ? `Không có gia đình nào mang mã ${byId[1]}.` : parts.length === 2 && parts[0] ? `Không tìm thấy gia đình “${escapeHtml(parts[0].slice(0, 100))}”.` : null;
+  if (!family && !unknown) {
+    await sender.send(message.chatId, group ? GROUP_REGISTRATION_HELP : REGISTRATION_HELP);
+    await showFamilies(); return true;
+  }
+  if (family && (!fullName || fullName.length > 100)) {
+    await sender.send(message.chatId, `${group ? 'Thêm tên nhóm' : 'Thêm họ tên của bạn'} (tối đa 100 ký tự) sau mã gia đình để quản trị viên biết ai đăng ký.\nVí dụ: ${registerExample(family.id, group)}`);
+    return true;
   }
   if (await hitRateLimit(db, `registration:${message.channel}:${message.chatId}`, 3600, now) > 5) {
     await sender.send(message.chatId, 'Bạn đã gửi nhiều yêu cầu. Vui lòng thử lại sau 1 giờ.'); return true;
   }
-  const family = findFamilyByName(await listFamilies(db), parts[0]);
-  if (!family) { await sender.send(message.chatId, 'Không xác định được gia đình. Vui lòng hỏi quản trị viên tên gia đình chính xác rồi gửi lại.'); return true; }
+  if (!family) {
+    await sender.send(message.chatId, `${unknown} Chọn mã trong danh sách bên dưới rồi gửi lại, ví dụ: ${registerExample(families[0]?.id ?? 3, group)}`);
+    await showFamilies(); return true;
+  }
   const existing = (await listChats(db)).find(c => c.channel === message.channel && c.chatId === message.chatId);
   if (existing && (existing.allFamilies || existing.familyIds.includes(family.id))) {
     await sender.send(message.chatId, 'Chat của bạn đã được đăng ký cho gia đình này. Nếu chưa nhận được tin, vui lòng liên hệ quản trị viên.'); return true;
   }
-  const request = await submitRegistration(db, message.channel, message.chatId, parts[1], family.id);
+  const request = await submitRegistration(db, message.channel, message.chatId, fullName, family.id);
   if (!request) { await sender.send(message.chatId, 'Yêu cầu của bạn đang chờ duyệt, không cần đăng ký lại.'); return true; }
   if (context) await notifyRegistrationAdmins(db, request, context);
   await sender.send(message.chatId, `Đã lưu đăng ký #${request.id} cho gia đình ${escapeHtml(family.name)}. Vui lòng chờ quản trị viên duyệt.`);

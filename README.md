@@ -172,7 +172,9 @@ Dùng được trên cả Telegram và Zalo.
 | `/saptoi` | Trong 30 ngày tới |
 | `/namnay` | Trong năm nay |
 | `/tim [tên]` | Tìm theo tên, quan hệ hoặc gia đình |
-| `/giadinh [tên]` | Liệt kê gia đình, hoặc xem ngày giỗ của một gia đình |
+| `/giadinh [tên]` | Liệt kê gia đình kèm mã (dạng `3 – Tên gia đình`), hoặc xem ngày giỗ của một gia đình |
+| `/dangky [mã] [họ tên]` | Đăng ký nhận tin của một gia đình, ví dụ `/dangky 3 Lê Minh Anh` |
+| `/huydangky [mã]` | Rời gia đình hoặc rút yêu cầu chờ duyệt |
 | `/id` | Xem Chat ID (không cần quyền) |
 
 Hỏi tự nhiên: "Tháng này có giỗ ai?", "Tuần tới có giỗ không?", "gio ong noi con bao nhieu ngay", "Ngày giỗ gần nhất là ngày nào?"
@@ -190,9 +192,9 @@ Zalo Bot Platform có hạn mức riêng, xem [ZALO_SETUP.md](ZALO_SETUP.md).
 
 ## Đăng ký thành viên và duyệt
 
-- Người dùng nhắn riêng bot Telegram/Zalo: `/dangky Tên gia đình | Họ tên` (cũng nhận `đăng ký Tên gia đình | Họ tên`). Gia đình cần được admin tạo trước.
-- Nhóm Zalo đăng ký bằng cách nhắc tên bot: `@Tên bot /dangky Tên gia đình | Tên nhóm`. Sau khi admin duyệt, mọi thành viên nhóm xem được dữ liệu và nhóm nhận tin nhắc. Gỡ nhóm do admin làm trên website.
-- Tự rời gia đình hoặc rút yêu cầu chờ duyệt: `/huydangky Tên gia đình` (cũng nhận `hủy đăng ký Tên gia đình`), không cần admin duyệt. Chat đang nhận mọi gia đình sẽ chuyển thành danh sách các gia đình còn lại, nên gia đình tạo sau này không tự được thêm. Hủy gia đình cuối cùng sẽ xóa chat khỏi danh sách nhận tin.
+- Người dùng nhắn riêng bot Telegram/Zalo: `/dangky [mã gia đình] [họ tên]`, ví dụ `/dangky 3 Lê Minh Anh` (cũng nhận `đăng ký 3 Lê Minh Anh` và `/dangky 3 | Lê Minh Anh`). Bot liệt kê mỗi gia đình dạng `mã – tên` khi gửi `/giadinh`, `/dangky` hoặc `/start` ở chat chưa có quyền, nên không phải gõ tên gia đình dài. Mã không tồn tại thì bot báo rõ và gửi lại danh sách. Kiểu cũ `/dangky Tên gia đình | Họ tên` vẫn nhận (form website dùng cách này). Gia đình cần được admin tạo trước.
+- Nhóm Zalo đăng ký bằng cách nhắc tên bot: `@Tên bot /dangky [mã gia đình] [tên nhóm]`, ví dụ `@Tên bot /dangky 3 Con cháu họ Phạm`. Sau khi admin duyệt, mọi thành viên nhóm xem được dữ liệu và nhóm nhận tin nhắc. Gỡ nhóm do admin làm trên website.
+- Tự rời gia đình hoặc rút yêu cầu chờ duyệt: `/huydangky [mã gia đình]` (cũng nhận `hủy đăng ký 3` hoặc tên gia đình đầy đủ), không cần admin duyệt. Chat đang nhận mọi gia đình sẽ chuyển thành danh sách các gia đình còn lại, nên gia đình tạo sau này không tự được thêm. Hủy gia đình cuối cùng sẽ xóa chat khỏi danh sách nhận tin.
 - Hoặc mở `/dang-ky` trên website: nhập gia đình, họ tên, kênh và Chat ID, rồi xác minh mã bot gửi. Mã có hiệu lực 10 phút, tối đa 5 lần thử; không tạo đăng ký khi chưa xác minh.
 - Admin vào **Kênh gửi → Đăng ký thành viên theo gia đình** để thêm/gỡ Chat ID quản lý nhận thông báo. Có thể nhận đồng thời qua Telegram và Zalo. Danh sách này chỉ là nơi nhận tin, không cấp quyền đăng nhập admin.
 - Yêu cầu được lưu chờ duyệt. Admin duyệt/từ chối trên website, hoặc từ chat riêng có Chat ID nằm trong danh sách "Admin duyệt và nhận thông báo": `/choduyet`, `/duyet 12`, `/tuchoi 12` (cũng nhận `duyệt 12`, `từ chối 12`). Sau mỗi quyết định, bot báo kết quả cho người đăng ký và cho mọi admin trên cả hai kênh, kèm người xử lý. Chat mới được giới hạn đúng gia đình, không có quyền quản trị website. Với chat đã tồn tại, giữ các cài đặt cũ và chỉ nối thêm gia đình đã duyệt.

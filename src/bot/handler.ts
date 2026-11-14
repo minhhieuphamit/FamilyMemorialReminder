@@ -64,8 +64,8 @@ export const BOT_COMMANDS = [
   { command: 'tim', description: 'Tìm theo tên: /tim ông nội' },
   { command: 'giadinh', description: 'Xem theo gia đình: /giadinh nhà nội' },
   { command: 'danhsachgiadinh', description: 'Gia đình đã tham gia và chưa tham gia' },
-  { command: 'dangky', description: 'Đăng ký: /dangky Tên gia đình | Họ tên' },
-  { command: 'huydangky', description: 'Hủy đăng ký: /huydangky Tên gia đình' },
+  { command: 'dangky', description: 'Đăng ký: /dangky Mã gia đình Họ tên' },
+  { command: 'huydangky', description: 'Hủy đăng ký: /huydangky Mã gia đình' },
   { command: 'help', description: 'Hướng dẫn sử dụng' },
 ];
 

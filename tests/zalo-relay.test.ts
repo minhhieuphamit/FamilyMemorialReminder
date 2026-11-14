@@ -9,6 +9,7 @@ import { listRegistrations, setRegistrationAdmins } from '../src/database/regist
 import { createSession } from '../src/database/sessions-repo';
 import type { ChannelSender } from '../src/services/channel-senders';
 import { sha256Hex } from '../src/utils/crypto';
+import { htmlToPlainText } from '../src/utils/text';
 import type { Env } from '../src/types/env';
 import { makeFakeSender } from './helpers/factories';
 import { createTestDb } from './helpers/fake-d1';
@@ -129,6 +130,26 @@ describe('Nhắc tên bot trong nhóm Zalo', () => {
       await send(`@${BOT} /dangky`);
       expect(user.sent.at(-2)?.text).toContain('@Tên bot /dangky');
       expect(user.sent.at(-1)?.text).not.toContain('/huydangky');
+    });
+
+    it('nhóm đăng ký bằng mã sau khi nhắc tên bot; danh sách hiện mã và ví dụ cho nhóm', async () => {
+      const { db, family, user, send } = await setup();
+      await send(`@${BOT} /dangky`);
+      expect(user.sent.at(-1)?.text).toContain(`<b>${family.id}</b> – Gia đình họ Phạm`);
+      expect(user.sent.at(-1)?.text).toContain(`@Tên bot /dangky ${family.id} Con cháu họ Phạm`);
+      // Zalo nhận chữ thường: thẻ <b> bị bỏ, còn lại đúng dạng "mã – tên".
+      expect(htmlToPlainText(user.sent.at(-1)!.text)).toContain(`• ${family.id} – Gia đình họ Phạm`);
+      await send(`@${BOT} /dangky ${family.id} Group nhắc lịch`);
+      expect(user.sent.at(-1)?.text).toContain('Vui lòng chờ quản trị viên duyệt');
+      expect((await listRegistrations(db, 'pending', 1, 10)).requests[0]).toMatchObject({ chat_id: 'zgr-1', full_name: 'Group nhắc lịch', family_id: family.id });
+    });
+
+    it('nhóm gõ mã lạ thì báo rõ kèm danh sách', async () => {
+      const { db, family, user, send } = await setup();
+      await send(`@${BOT} /dangky 999 Group nhắc lịch`);
+      expect(user.sent.at(-2)?.text).toContain('Không có gia đình nào mang mã 999');
+      expect(user.sent.at(-1)?.text).toContain(`<b>${family.id}</b> – Gia đình họ Phạm`);
+      expect((await listRegistrations(db, '', 1, 10)).total).toBe(0);
     });
 
     it('thành viên không tự gỡ nhóm được', async () => {
