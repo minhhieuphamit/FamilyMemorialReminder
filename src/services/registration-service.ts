@@ -18,14 +18,14 @@ const registerExample = (id: number | string, group: boolean) => (group ? '@Tên
 
 /**
  * Liệt kê mỗi gia đình dạng "mã – tên" theo trạng thái của Chat ID. Người dùng chỉ cần gõ mã khi đăng ký,
- * vì tên gia đình thường dài và dễ gõ sai một chữ.
+ * vì tên gia đình thường dài và dễ gõ sai một chữ. Sắp theo mã để dễ dò số.
  */
 export async function sendRegistrationFamilies(db: D1Database, sender: ChannelSender, chatId: string, channel: Channel, mentionedInGroup = false) {
   const { results } = await db.prepare(`SELECT f.id, f.name,
     EXISTS(SELECT 1 FROM chats c WHERE c.channel=?1 AND c.chat_id=?2 AND
       (c.all_families=1 OR EXISTS(SELECT 1 FROM chat_families cf WHERE cf.chat_row_id=c.id AND cf.family_id=f.id))) AS joined,
     EXISTS(SELECT 1 FROM registration_requests r WHERE r.channel=?1 AND r.chat_id=?2 AND r.family_id=f.id AND r.status='pending') AS pending
-    FROM families f ORDER BY f.name`).bind(channel, chatId).all<{id:number;name:string;joined:number;pending:number}>();
+    FROM families f ORDER BY f.id`).bind(channel, chatId).all<{id:number;name:string;joined:number;pending:number}>();
   const section = (title: string, rows: typeof results) => rows.length ? ['', `${title} (${rows.length})`, ...rows.map(f => `• <b>${f.id}</b> – ${escapeHtml(f.name)}`)] : [];
   const joined = results.filter(f => f.joined);
   const pending = results.filter(f => !f.joined && f.pending);
@@ -197,7 +197,7 @@ export async function handleRegistration(message: IncomingMessage, db: D1Databas
     await sender.send(message.chatId, 'Bạn đã gửi nhiều yêu cầu. Vui lòng thử lại sau 1 giờ.'); return true;
   }
   if (!family) {
-    await sender.send(message.chatId, `${unknown} Chọn mã trong danh sách bên dưới rồi gửi lại, ví dụ: ${registerExample(families[0]?.id ?? 3, group)}`);
+    await sender.send(message.chatId, `${unknown} Chọn mã trong danh sách bên dưới rồi gửi lại, ví dụ: ${registerExample(families.length ? Math.min(...families.map(f => f.id)) : 3, group)}`);
     await showFamilies(); return true;
   }
   const existing = (await listChats(db)).find(c => c.channel === message.channel && c.chatId === message.chatId);

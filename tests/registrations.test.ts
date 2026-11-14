@@ -307,6 +307,16 @@ describe('Đăng ký theo gia đình',()=>{
       await register(template.replace('{id}',String(longId)));
       expect((await listRegistrations(db,'pending',1,10)).requests[0]).toMatchObject({full_name:'Người mới',family_id:longId});
     });
+    it('danh sách sắp theo mã, không theo tên',async()=>{
+      const pham=(await createFamily(db,'Gia đình họ Phạm')).id;
+      const reply=(await register('/giadinh')).sent.at(-1)?.text??'';
+      const at=(id:number)=>reply.indexOf(`<b>${id}</b> – `);
+      expect([familyId,longId,pham]).toEqual([1,2,3]);
+      expect(at(1)).toBeGreaterThan(-1);
+      expect(at(1)).toBeLessThan(at(2));
+      expect(at(2)).toBeLessThan(at(3));
+      expect(reply).toContain('Ví dụ: /dangky 1 Lê Minh Anh');
+    });
     it('vẫn nhận tên gia đình đầy đủ kiểu cũ',async()=>{
       await register('/dangky phạm văn phát - nguyễn thị hoa | Người mới');
       expect((await listRegistrations(db,'pending',1,10)).requests[0]).toMatchObject({family_id:longId});
